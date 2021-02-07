@@ -12,6 +12,7 @@
     "axios": "^0.21.1",
     "chalk": "^3.0.0",
     "chokidar": "^3.3.1",
+    "electron": "^11.2.3",
     "fastify": "^3.8.0",
     "fastify-http-proxy": "^4.0.4",
     "fastify-static": "^3.3.0",
@@ -21,6 +22,8 @@
     "mhtml2html": "^3.0.0",
     "mitt": "^2.1.0",
     "puppeteer": "^5.5.0",
+    "puppeteer-core": "^7.0.1",
+    "puppeteer-in-electron": "^3.0.3",
     "tmp-promise": "^2.0.2",
     "uuid": "^8.3.1"
   },
