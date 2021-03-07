@@ -2,7 +2,7 @@ import React from 'react';
 import { ICommand } from './Command';
 import { render } from 'react-dom';
 
-function scrollIntoView(element: Element | null) {
+function scrollIntoView(element: Node | null) {
   if (!element) {
     return;
   }
@@ -19,25 +19,21 @@ function scrollIntoView(element: Element | null) {
   }
 }
 
-export function resolveElement(el: any, root: Document) {
+export function resolveElement(el: any, root: ShadowRoot | Element) {
   el = el.map((item: any) => (Array.isArray(item) ? `${item[0]}:nth-of-type(${item[1] + 1})` : item));
   return root.querySelector(el.join(' > '));
 }
 
 export function loadHighlights(
-  iframe: React.MutableRefObject<null | HTMLIFrameElement>,
+  shadowRef: React.MutableRefObject<null | HTMLIFrameElement>,
   command: ICommand | undefined,
   snapshotState: 'before' | 'after',
 ) {
-  if (!iframe?.current?.contentWindow || !command || command.errors.length > 0) {
+  if (!shadowRef?.current || !command || command.errors.length > 0) {
     return;
   }
 
-  let frame = iframe.current.contentWindow.document;
-
-  if (!frame.body) {
-    return;
-  }
+  let root = shadowRef?.current;
 
   let { func, args, on } = command;
   let { path } = on;
@@ -45,11 +41,9 @@ export function loadHighlights(
   // path is always an array because the user can perform the same function on multiple elements
   // this is a precaution for future functions or other plugins
   path.forEach((el) => {
-    let root: any = frame.body;
-
     // only if el is a path then change root to this element
     if (Array.isArray(el)) {
-      root = resolveElement(el, frame);
+      root = resolveElement(el, root);
     }
 
     if (!root) {
@@ -61,22 +55,22 @@ export function loadHighlights(
 
       scrollIntoView(selectedElement);
 
-      highlight(root, frame, true);
-      highlight(root.querySelector(args[0]), frame);
+      highlight(root, root, true);
+      highlight(root.querySelector(args[0]), root);
     } else if (func === 'type') {
       scrollIntoView(root);
-      highlight(root, frame);
+      highlight(root, root);
 
-      if (snapshotState === 'after') {
-        root.value = args[0];
-      }
-    } else if (func === 'type' && snapshotState === 'before') {
-      scrollIntoView(root);
-      highlight(root, frame);
-    }
+      // if (snapshotState === 'after') {
+      //   root.value = args[0];
+      // }
+    } // else if (func === 'type' && snapshotState === 'before') {
+    // scrollIntoView(root);
+    // highlight(root, frame);
+    // }
   });
 
-  function highlight(element: any, context: Document, root = false) {
+  function highlight(element: any, context: ShadowRoot | Element, main = false) {
     if (!element) {
       return;
     }
@@ -92,7 +86,7 @@ export function loadHighlights(
       <div
         style={{
           zIndex: 999999,
-          border: root ? '2px dashed orange' : '2px dashed rgb(49 109 220)',
+          border: main ? '2px dashed orange' : '2px dashed rgb(49 109 220)',
           borderStyle: 'dashed',
           position: 'absolute',
           top: position.top + 'px',
@@ -104,34 +98,10 @@ export function loadHighlights(
       />
     );
 
-    // let overlay = document.createElement('div');
-    // overlay.style.zIndex = '999999';
-    // overlay.style.border = root ? '2px dashed orange' : '2px dashed rgb(49 109 220)';
-    // overlay.style.borderStyle = 'dashed';
-    // overlay.style.position = 'absolute';
-    // overlay.style.top = position.top + 'px';
-    // overlay.style.left = position.left + 'px';
-    // overlay.style.width = highlightSize.width + 'px';
-    // overlay.style.height = highlightSize.height + 'px';
-    // overlay.style.pointerEvents = 'none';
-
-    // TODO check if root element has enough room to show label
-    // if (root) {
-    //   let label = document.createElement('div');
-    //   label.innerText = 'root';
-    //   label.style.background = 'orange';
-    //   label.style.position = 'absolute';
-    //   label.style.left = '0px';
-    //   label.style.top = '0px';
-    //   label.style.padding = '0.25rem 0.5rem';
-    //   label.style.lineHeight = '1';
-    //   label.style.pointerEvents = 'none';
-    //
-    //   overlay.append(label);
-    // }
-
     let node = document.createElement('div');
-    context.body.appendChild(node);
+    console.log(context);
+    console.log(node);
+    context.appendChild(node);
     render(overlay, node);
   }
 

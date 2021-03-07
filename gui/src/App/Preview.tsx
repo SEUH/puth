@@ -4,6 +4,7 @@ import { ICommand, ISnapshot } from './Command';
 import { action, makeAutoObservable } from 'mobx';
 import { Events } from '../index';
 import { loadHighlights, resolveElement } from './Highlight';
+import shadow from 'react-shadow';
 
 function calculateIframeSize(snapshot: ISnapshot | undefined, iframeContainer: any) {
   let size = {
@@ -42,47 +43,6 @@ function calculateIframeSize(snapshot: ISnapshot | undefined, iframeContainer: a
 
   return size;
 }
-
-const IframeHandler = ({
-  iframe,
-  iframeContainer,
-  size,
-  background,
-}: {
-  iframe: any;
-  iframeContainer: any;
-  size: any;
-  background: string;
-}) => {
-  return (
-    <div className={'d-flex bg-striped'} style={{ flex: 1 }}>
-      <div
-        ref={iframeContainer}
-        style={{
-          flex: 1,
-          overflow: 'hidden',
-          width: size.container.width,
-          height: size.container.height,
-        }}
-      >
-        <iframe
-          title={'Preview'}
-          frameBorder="0"
-          ref={iframe}
-          sandbox={'allow-same-origin'}
-          onLoad={() => loadHighlights(iframe, previewStore.visibleCommand, previewStore.visibleHighlightState)}
-          style={{
-            transformOrigin: '0 0',
-            transform: 'scale(' + size.scale + ')',
-            width: size.width,
-            height: size.height,
-            background,
-          }}
-        />
-      </div>
-    </div>
-  );
-};
 
 export type SnapshotState = 'before' | 'after';
 
@@ -141,10 +101,13 @@ class PreviewStore {
 export const previewStore = new PreviewStore();
 
 export const Preview = observer(() => {
-  const iframe = useRef<any>(null);
+  const shadowRoot = useRef<any>(null);
+  const shadowRootInner = useRef<any>(null);
+  // const iframe = useRef<any>(null);
   const iframeContainer = useRef(null);
 
   useEffect(() => {
+    console.log('ran effect');
     const eventToggle = action((cmd: ICommand | undefined) => {
       if (previewStore.activeCommand === cmd) {
         previewStore.activeCommand = undefined;
@@ -190,16 +153,25 @@ export const Preview = observer(() => {
   let snapshot = previewStore.visibleSnapshot;
   let size = calculateIframeSize(snapshot, iframeContainer);
 
-  let element: any = iframe?.current;
-  let doc = element?.contentWindow?.document;
+  console.log(shadowRoot);
+
+  let element: any = shadowRoot?.current;
+  let doc = element?.shadowRoot;
+
+  useEffect(() => {
+    console.log('snapshot changed');
+    loadHighlights(shadowRootInner, previewStore.visibleCommand, previewStore.visibleHighlightState);
+  }, [snapshot]);
 
   // cleans iframe
-  if (element && !snapshot) {
-    element.src = 'about:blank';
-    doc.open();
-    doc.write('');
-    doc.close();
-  }
+  // if (element && !snapshot) {
+  //   console.time('writing empty');
+  //   element.src = 'about:blank';
+  //   doc.open();
+  //   doc.write('');
+  //   doc.close();
+  //   console.timeEnd('writing empty');
+  // }
 
   let html;
 
@@ -210,46 +182,58 @@ export const Preview = observer(() => {
     html = snapshot?.html?.src.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/, '');
   }
 
-  if (html) {
-    element.src = 'about:blank';
-    doc.open();
-    doc.write(html ?? '');
-    doc.close();
+  // if (html) {
+  //   console.time('writing html');
+  //   element.src = 'about:blank';
+  //   doc.open();
+  //   doc.write(html ?? '');
+  //   doc.close();
+  //
+  //   // Trying to remove every smooth scroll effect.
+  //   doc.documentElement.style.scrollBehavior = 'unset';
+  //   doc.querySelector('body').addEventListener(
+  //     'wheel',
+  //     function (event: any) {
+  //       event.stopPropagation();
+  //     },
+  //     true,
+  //   );
+  //   console.timeEnd('writing html');
+  // }
 
-    // Trying to remove every smooth scroll effect.
-    doc.documentElement.style.scrollBehavior = 'unset';
-    doc.querySelector('body').addEventListener(
-      'wheel',
-      function (event: any) {
-        event.stopPropagation();
-      },
-      true,
-    );
-  }
+  // Recovers state of disconnected dom elements
+  // if (snapshot && snapshot.version === 2) {
+  //   console.time('recovery');
+  //   let [styleSheets, us] = snapshot?.html?.untracked;
+  //   let rp = [];
+  //
+  //   styleSheets.forEach((ss) => {
+  //     rp.push({
+  //       node: resolveElement(ss.path, doc),
+  //       content: ss.content,
+  //     });
+  //   });
+  //   rp.forEach((ss) => {
+  //     let rawStyleTag = document.createElement('style');
+  //     rawStyleTag.innerHTML = ss.content;
+  //     if (!ss.node) {
+  //       console.error('StyleNode to replace not found!');
+  //       return;
+  //     }
+  //     ss.node.replaceWith(rawStyleTag);
+  //   });
+  //   us.forEach((el) => {
+  //     let node = resolveElement(el.path, doc);
+  //     if (!node) {
+  //       console.error('Node for state recovery not found!', node);
+  //       return;
+  //     }
+  //     node.value = el.value;
+  //   });
+  //   console.timeEnd('recovery');
+  // }
 
-  if (snapshot && snapshot.version === 2) {
-    let [styleSheets, us] = snapshot?.html?.untracked;
-    let rp = [];
-    styleSheets.forEach((ss) => {
-      rp.push({
-        node: resolveElement(ss.path, doc),
-        content: ss.content,
-      });
-    });
-    rp.forEach((ss) => {
-      let rawStyleTag = doc.createElement('style');
-      rawStyleTag.innerHTML = ss.content;
-
-      if (!ss.node) {
-        console.error('StyleNode to replace not found!');
-        console.log(ss);
-        return;
-      }
-      // console.log('Replacing:', ss.node.href);
-      // console.log(rawStyleTag);
-      ss.node.replaceWith(rawStyleTag);
-    });
-  }
+  // TODO fix double call to rerender <Preview>...
 
   return (
     <div
@@ -288,12 +272,46 @@ export const Preview = observer(() => {
           {snapshot?.viewport.width}x{snapshot?.viewport.height} ({(size.scale * 100).toFixed(0)}%)
         </button>
       </div>
-      <IframeHandler
-        iframe={iframe}
-        iframeContainer={iframeContainer}
-        size={size}
-        background={html ? 'white' : 'transparent'}
-      />
+      <div className={'d-flex bg-striped'} style={{ flex: 1 }}>
+        <div
+          ref={iframeContainer}
+          style={{
+            flex: 1,
+            overflow: 'hidden',
+            width: size.container.width,
+            height: size.container.height,
+          }}
+        >
+          <shadow.div ref={shadowRoot}>
+            <div
+              dangerouslySetInnerHTML={{ __html: html }}
+              ref={shadowRootInner}
+              style={{
+                transformOrigin: '0 0',
+                transform: 'scale(' + size.scale + ')',
+                width: size.width,
+                height: size.height,
+                background: html ? 'white' : 'transparent',
+                overflow: 'auto',
+              }}
+            />
+          </shadow.div>
+          {/*<iframe
+            title={'Preview'}
+            frameBorder="0"
+            ref={iframe}
+            sandbox={'allow-same-origin'}
+            onLoad={() => loadHighlights(iframe, previewStore.visibleCommand, previewStore.visibleHighlightState)}
+            style={{
+              transformOrigin: '0 0',
+              transform: 'scale(' + size.scale + ')',
+              width: size.width,
+              height: size.height,
+              background: html ? 'white' : 'transparent',
+            }}
+          />*/}
+        </div>
+      </div>
     </div>
   );
 });
